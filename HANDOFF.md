@@ -77,18 +77,29 @@ git commit -m "Describe the change"
 4. 不要勾选 `Add a README file`，因为本地已经有文件。
 5. 创建后，GitHub 会显示一段 `push an existing repository` 的命令。
 
-如果仓库地址是：
-`https://github.com/YOUR_NAME/double-zombie-game.git`
+本项目当前远程仓库地址是：
+`https://github.com/junxian509/zombie-game.git`
 
-则在本项目目录运行：
+首次推送在本项目目录运行：
 
 ```bash
 git branch -M main
-git remote add origin https://github.com/YOUR_NAME/double-zombie-game.git
+git remote add origin https://github.com/junxian509/zombie-game.git
 git push -u origin main
 ```
 
-把 `YOUR_NAME` 换成你的 GitHub 用户名即可。
+如果已经添加过 `origin`，只需要运行：
+
+```bash
+git push -u origin main
+```
+
+GitHub 现在不再接受账号密码直接推送。若终端提示需要认证，推荐使用 GitHub Desktop 登录后推送，或使用 GitHub CLI 登录：
+
+```bash
+gh auth login
+git push -u origin main
+```
 
 ## 后续开发建议
 1. 增加武器箱：临时强化子弹尺寸和范围。
