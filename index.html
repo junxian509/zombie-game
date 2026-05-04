@@ -1,0 +1,1212 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>双人打僵尸 - 波次版</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --panel: rgba(10, 13, 17, 0.82);
+      --line: rgba(255, 255, 255, 0.2);
+      --text: #f4f7fb;
+      --muted: #b7c2cf;
+      --blue: #43a5ff;
+      --red: #ff505b;
+      --gold: #ffd95a;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: #07090c;
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow: hidden;
+    }
+
+    .game-shell {
+      width: min(100vw, 1100px);
+      padding: 14px;
+    }
+
+    .stage {
+      position: relative;
+      aspect-ratio: 10 / 7;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #12171e;
+      box-shadow: 0 22px 70px rgba(0, 0, 0, 0.48);
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .hud {
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      top: 10px;
+      min-height: 54px;
+      display: grid;
+      grid-template-columns: auto auto minmax(150px, 1fr) minmax(150px, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      backdrop-filter: blur(10px);
+      z-index: 3;
+    }
+
+    .pill {
+      min-height: 36px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.05);
+      white-space: nowrap;
+      font-size: 14px;
+    }
+
+    .player-pill {
+      justify-content: space-between;
+      min-width: 0;
+    }
+
+    .player-pill strong {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .blue {
+      color: var(--blue);
+    }
+
+    .red {
+      color: var(--red);
+    }
+
+    .hearts {
+      color: #ff6a73;
+      letter-spacing: 1px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      justify-content: flex-end;
+      justify-self: end;
+    }
+
+    button {
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      padding: 9px 11px;
+      font-weight: 750;
+      cursor: pointer;
+      min-height: 36px;
+    }
+
+    button:hover {
+      background: rgba(255, 255, 255, 0.16);
+    }
+
+    button:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+
+    .banner {
+      position: absolute;
+      left: 50%;
+      top: 105px;
+      transform: translateX(-50%);
+      min-width: 330px;
+      padding: 16px 22px;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.58);
+      color: white;
+      text-align: center;
+      font-size: 30px;
+      font-weight: 900;
+      letter-spacing: 0;
+      z-index: 4;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 180ms ease;
+    }
+
+    .banner.show {
+      opacity: 1;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: none;
+      place-items: center;
+      padding: 24px;
+      text-align: center;
+      background: rgba(2, 4, 7, 0.72);
+      z-index: 5;
+    }
+
+    .overlay.show {
+      display: grid;
+    }
+
+    .message {
+      max-width: 560px;
+      display: grid;
+      gap: 12px;
+      padding: 24px 28px;
+      border: 1px solid rgba(255, 255, 255, 0.24);
+      border-radius: 8px;
+      background: rgba(13, 17, 23, 0.95);
+      box-shadow: 0 22px 70px rgba(0, 0, 0, 0.5);
+    }
+
+    .message h1 {
+      margin: 0;
+      font-size: clamp(34px, 5vw, 56px);
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .message p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .self-test {
+      display: none;
+      margin-top: 10px;
+      padding: 12px 14px;
+      border: 1px solid rgba(255, 217, 90, 0.5);
+      border-radius: 8px;
+      background: rgba(20, 18, 10, 0.95);
+      color: var(--gold);
+      white-space: pre-wrap;
+      font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    body.autotest .self-test {
+      display: block;
+    }
+
+    @media (max-width: 900px) {
+      body {
+        overflow: auto;
+      }
+
+      .hud {
+        grid-template-columns: 1fr 1fr;
+        align-content: start;
+      }
+
+      .stage {
+        overflow: hidden;
+      }
+
+      .controls {
+        grid-column: 2;
+        justify-content: flex-end;
+        justify-self: end;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="game-shell">
+    <section class="stage" aria-label="双人打僵尸游戏">
+      <canvas id="game" width="1000" height="700"></canvas>
+      <div class="hud">
+        <div id="waveHud" class="pill">第 1 波</div>
+        <div id="remainHud" class="pill">剩余 0 / 0</div>
+        <div class="pill player-pill">
+          <strong class="blue">蓝方 P1</strong>
+          <span><span id="p1Hearts" class="hearts">❤❤❤</span> 击杀 <b id="p1Kills">0</b></span>
+        </div>
+        <div class="pill player-pill">
+          <strong class="red">红方 P2</strong>
+          <span><span id="p2Hearts" class="hearts">❤❤❤</span> 击杀 <b id="p2Kills">0</b></span>
+        </div>
+        <div class="controls">
+          <button id="modeButton" type="button">合作模式</button>
+          <button id="nextWaveButton" type="button" hidden>下一波</button>
+        </div>
+      </div>
+      <div id="banner" class="banner">第 1 波 - 准备！</div>
+      <div id="overlay" class="overlay">
+        <div class="message">
+          <h1 id="resultTitle">游戏结束</h1>
+          <p id="resultText">按 R 重置全部状态</p>
+        </div>
+      </div>
+    </section>
+    <pre id="selfTest" class="self-test" aria-live="polite">等待测试...</pre>
+  </main>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width;
+    const H = canvas.height;
+    const HUD_H = 82;
+    const MARGIN = 20;
+    const MAX_ZOMBIES = 20;
+    const SHOOT_COOLDOWN = 333;
+    const SPAWN_INTERVAL = 800;
+    const WIN_WAVE = 10;
+
+    const keys = Object.create(null);
+    const ui = {
+      waveHud: document.getElementById("waveHud"),
+      remainHud: document.getElementById("remainHud"),
+      p1Hearts: document.getElementById("p1Hearts"),
+      p2Hearts: document.getElementById("p2Hearts"),
+      p1Kills: document.getElementById("p1Kills"),
+      p2Kills: document.getElementById("p2Kills"),
+      modeButton: document.getElementById("modeButton"),
+      nextWaveButton: document.getElementById("nextWaveButton"),
+      banner: document.getElementById("banner"),
+      overlay: document.getElementById("overlay"),
+      resultTitle: document.getElementById("resultTitle"),
+      resultText: document.getElementById("resultText")
+    };
+
+    let mode = "coop";
+    let wave = 1;
+    let players = [];
+    let zombies = [];
+    let bullets = [];
+    let particles = [];
+    let flashes = [];
+    let wavePlan = [];
+    let spawnedThisWave = 0;
+    let totalThisWave = 0;
+    let waveState = "ready";
+    let readyTimer = 0;
+    let spawnTimer = 0;
+    let lastTime = performance.now();
+    let gameOver = false;
+    let fps = 60;
+    let fpsFrames = 0;
+    let fpsClock = 0;
+
+    function playerTemplate(id, color, controls, shootKeys, aim) {
+      return {
+        id,
+        color,
+        x: 0,
+        y: 0,
+        radius: 20,
+        speed: 248,
+        controls,
+        shootKeys,
+        aim,
+        lives: 3,
+        kills: 0,
+        waveKills: 0,
+        lastShot: -999,
+        invincibleUntil: 0,
+        alive: true
+      };
+    }
+
+    function makePlayers() {
+      return [
+        playerTemplate(1, "#43a5ff", { up: "KeyW", down: "KeyS", left: "KeyA", right: "KeyD" }, ["KeyF"], { x: 1, y: 0 }),
+        playerTemplate(2, "#ff505b", { up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight" }, ["Period", "Slash"], { x: -1, y: 0 })
+      ];
+    }
+
+    function placePlayers() {
+      if (mode === "coop") {
+        players[0].x = 180;
+        players[0].y = H - 110;
+        players[1].x = W - 180;
+        players[1].y = H - 110;
+      } else {
+        players[0].x = W / 2 - 90;
+        players[0].y = H - 140;
+        players[1].x = W / 2 + 90;
+        players[1].y = H - 140;
+      }
+      players[0].aim = { x: 1, y: 0 };
+      players[1].aim = { x: -1, y: 0 };
+    }
+
+    function normalCountForWave(n) {
+      const total = 5 + n * 2;
+      return Math.max(0, total - eliteCountForWave(n));
+    }
+
+    function eliteCountForWave(n) {
+      if (n < 3) return 0;
+      if (n >= 12) return 3;
+      if (n >= 11) return 2;
+      return 1;
+    }
+
+    function buildWavePlan(n) {
+      const total = 5 + n * 2;
+      const elites = Math.min(eliteCountForWave(n), total);
+      const normals = Math.max(0, total - elites);
+      const plan = [];
+      for (let i = 0; i < normals; i++) plan.push("normal");
+      for (let i = 0; i < elites; i++) {
+        const at = Math.min(plan.length, 3 + i * 4);
+        plan.splice(at, 0, "elite");
+      }
+      return plan;
+    }
+
+    function resetAll() {
+      wave = 1;
+      players = makePlayers();
+      gameOver = false;
+      ui.overlay.classList.remove("show");
+      startWave();
+    }
+
+    function startWave() {
+      zombies = [];
+      bullets = [];
+      particles = [];
+      wavePlan = buildWavePlan(wave);
+      spawnedThisWave = 0;
+      totalThisWave = wavePlan.length;
+      readyTimer = 2;
+      spawnTimer = 0;
+      waveState = "ready";
+      for (const p of players) {
+        p.waveKills = 0;
+        p.invincibleUntil = 0;
+        p.alive = p.lives > 0;
+      }
+      placePlayers();
+      showBanner(`第 ${wave} 波 - 准备！`, 2000);
+      updateUi();
+    }
+
+    function showBanner(text, ms = 1400) {
+      ui.banner.textContent = text;
+      ui.banner.classList.add("show");
+      window.clearTimeout(showBanner.timer);
+      showBanner.timer = window.setTimeout(() => ui.banner.classList.remove("show"), ms);
+    }
+
+    function updateUi() {
+      ui.waveHud.textContent = `第 ${wave} 波`;
+      const remaining = zombies.length + Math.max(0, totalThisWave - spawnedThisWave);
+      ui.remainHud.textContent = `剩余 ${remaining} / ${totalThisWave}`;
+      ui.p1Hearts.textContent = players[0] ? "❤".repeat(Math.max(0, players[0].lives)) || "空" : "❤❤❤";
+      ui.p2Hearts.textContent = players[1] ? "❤".repeat(Math.max(0, players[1].lives)) || "空" : "❤❤❤";
+      ui.p1Kills.textContent = players[0]?.kills ?? 0;
+      ui.p2Kills.textContent = players[1]?.kills ?? 0;
+      ui.modeButton.textContent = mode === "coop" ? "合作模式" : "对抗模式";
+      ui.nextWaveButton.hidden = !(mode === "versus" && waveState === "cleared" && !gameOver);
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function norm(x, y) {
+      const d = Math.hypot(x, y) || 1;
+      return { x: x / d, y: y / d };
+    }
+
+    function dist(a, b) {
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    }
+
+    function randomSpawnPoint() {
+      const side = Math.floor(Math.random() * 4);
+      if (side === 0) return { x: Math.random() * W, y: HUD_H + 4 };
+      if (side === 1) return { x: W - 4, y: HUD_H + Math.random() * (H - HUD_H) };
+      if (side === 2) return { x: Math.random() * W, y: H - 4 };
+      return { x: 4, y: HUD_H + Math.random() * (H - HUD_H) };
+    }
+
+    function spawnZombie(type) {
+      const point = randomSpawnPoint();
+      const elite = type === "elite";
+      zombies.push({
+        id: crypto.randomUUID ? crypto.randomUUID() : String(Math.random()),
+        type,
+        x: point.x,
+        y: point.y,
+        radius: elite ? 28 : 20,
+        hp: elite ? 5 : 1,
+        maxHp: elite ? 5 : 1,
+        damage: elite ? 2 : 1,
+        speed: elite ? 48 : 69 + Math.random() * 14,
+        wobble: Math.random() * Math.PI * 2,
+        hitFlash: 0
+      });
+      updateUi();
+    }
+
+    function updateWave(dt) {
+      if (gameOver || waveState === "cleared") return;
+      if (waveState === "ready") {
+        readyTimer -= dt;
+        if (readyTimer <= 0) {
+          waveState = "spawning";
+        }
+        return;
+      }
+
+      if (waveState === "spawning") {
+        spawnTimer += dt * 1000;
+        while (spawnTimer >= SPAWN_INTERVAL && spawnedThisWave < totalThisWave && zombies.length < MAX_ZOMBIES) {
+          spawnTimer -= SPAWN_INTERVAL;
+          spawnZombie(wavePlan[spawnedThisWave]);
+          spawnedThisWave += 1;
+        }
+        if (spawnedThisWave >= totalThisWave) {
+          waveState = "active";
+        }
+      }
+
+      if ((waveState === "spawning" || waveState === "active") && spawnedThisWave >= totalThisWave && zombies.length === 0) {
+        finishWave();
+      }
+    }
+
+    function finishWave() {
+      bullets = [];
+      particles = [];
+      if (mode === "coop") {
+        if (wave >= WIN_WAVE) {
+          endGame("人类获胜", `你们守住了第 ${WIN_WAVE} 波，总击杀 ${players[0].kills + players[1].kills}`);
+          return;
+        }
+        wave += 1;
+        startWave();
+        return;
+      }
+
+      waveState = "cleared";
+      const p1 = players[0];
+      const p2 = players[1];
+      if (p1.waveKills < p2.waveKills && p1.lives > 1) {
+        p1.lives -= 1;
+        edgeFlash("#43a5ff");
+        showBanner("蓝方本波落后，扣 1 血", 1200);
+      } else if (p2.waveKills < p1.waveKills && p2.lives > 1) {
+        p2.lives -= 1;
+        edgeFlash("#ff505b");
+        showBanner("红方本波落后，扣 1 血", 1200);
+      } else {
+        showBanner("本波平局，准备下一波", 1200);
+      }
+      placePlayers();
+      updateUi();
+    }
+
+    function edgeFlash(color) {
+      flashes.push({ color, life: 0.55, max: 0.55 });
+    }
+
+    function endGame(title, text) {
+      gameOver = true;
+      waveState = "gameover";
+      ui.resultTitle.textContent = title;
+      ui.resultText.textContent = `${text} · 按 R 重置全部状态`;
+      ui.overlay.classList.add("show");
+      updateUi();
+    }
+
+    function checkDeaths() {
+      const p1Dead = players[0].lives <= 0;
+      const p2Dead = players[1].lives <= 0;
+      players[0].alive = !p1Dead;
+      players[1].alive = !p2Dead;
+      if (mode === "coop" && (p1Dead || p2Dead)) {
+        endGame("僵尸获胜", "任意玩家倒下，合作防线崩溃");
+      } else if (mode === "versus") {
+        if (p1Dead && p2Dead) endGame("平局", "双方都被僵尸拖入黑暗");
+        else if (p1Dead) endGame("红方胜利！", "蓝方生命归零");
+        else if (p2Dead) endGame("蓝方胜利！", "红方生命归零");
+      }
+    }
+
+    function shoot(player, now) {
+      if (!player.alive || now - player.lastShot < SHOOT_COOLDOWN) return;
+      player.lastShot = now;
+      const aim = norm(player.aim.x, player.aim.y);
+      bullets.push({
+        x: player.x + aim.x * 30,
+        y: player.y + aim.y * 30,
+        vx: aim.x * 595,
+        vy: aim.y * 595,
+        owner: player.id,
+        radius: 5,
+        life: 0.9
+      });
+    }
+
+    function handleInput(dt, now) {
+      if (gameOver || waveState === "cleared") return;
+      for (const p of players) {
+        if (!p.alive) continue;
+        let ix = 0;
+        let iy = 0;
+        if (keys[p.controls.left]) ix -= 1;
+        if (keys[p.controls.right]) ix += 1;
+        if (keys[p.controls.up]) iy -= 1;
+        if (keys[p.controls.down]) iy += 1;
+        const moved = ix !== 0 || iy !== 0;
+        const dir = norm(ix, iy);
+        if (moved) p.aim = dir;
+        p.x = clamp(p.x + (moved ? dir.x * p.speed * dt : 0), MARGIN, W - MARGIN);
+        p.y = clamp(p.y + (moved ? dir.y * p.speed * dt : 0), HUD_H + MARGIN, H - MARGIN);
+        if (p.shootKeys.some((code) => keys[code])) {
+          shoot(p, now);
+        }
+      }
+    }
+
+    function updateZombies(dt, now) {
+      for (const z of zombies) {
+        z.hitFlash = Math.max(0, z.hitFlash - dt);
+        const targets = players.filter((p) => p.alive);
+        if (!targets.length) continue;
+        targets.sort((a, b) => dist(z, a) - dist(z, b));
+        const target = targets[0];
+        const dir = norm(target.x - z.x, target.y - z.y);
+        z.wobble += dt * 6;
+        const sway = z.type === "elite" ? 3 : 7;
+        z.x += (dir.x * z.speed + Math.cos(z.wobble) * sway) * dt;
+        z.y += (dir.y * z.speed + Math.sin(z.wobble) * sway) * dt;
+        z.x = clamp(z.x, 0, W);
+        z.y = clamp(z.y, HUD_H, H);
+      }
+
+      for (let zi = zombies.length - 1; zi >= 0; zi--) {
+        const z = zombies[zi];
+        for (const p of players) {
+          if (!p.alive) continue;
+          if (dist(z, p) < z.radius + p.radius) {
+            if (now >= p.invincibleUntil) {
+              p.lives -= z.damage;
+              p.invincibleUntil = now + 1000;
+              edgeFlash(p.color);
+              burst(p.x, p.y, p.color, 16);
+              if (z.type === "normal") {
+                zombies.splice(zi, 1);
+              } else {
+                const push = norm(z.x - p.x, z.y - p.y);
+                z.x += push.x * 46;
+                z.y += push.y * 46;
+              }
+              checkDeaths();
+              updateUi();
+            } else {
+              const push = norm(z.x - p.x, z.y - p.y);
+              z.x += push.x * 22;
+              z.y += push.y * 22;
+            }
+            break;
+          }
+        }
+      }
+    }
+
+    function updateBullets(dt) {
+      for (let bi = bullets.length - 1; bi >= 0; bi--) {
+        const b = bullets[bi];
+        b.x += b.vx * dt;
+        b.y += b.vy * dt;
+        b.life -= dt;
+        if (b.life <= 0 || b.x < -30 || b.x > W + 30 || b.y < HUD_H - 30 || b.y > H + 30) {
+          bullets.splice(bi, 1);
+          continue;
+        }
+        for (let zi = zombies.length - 1; zi >= 0; zi--) {
+          const z = zombies[zi];
+          if (dist(b, z) < b.radius + z.radius) {
+            z.hp -= 1;
+            z.hitFlash = 0.12;
+            bullets.splice(bi, 1);
+            if (z.hp <= 0) {
+              zombies.splice(zi, 1);
+              const owner = players.find((p) => p.id === b.owner);
+              if (owner) {
+                owner.kills += 1;
+                owner.waveKills += 1;
+              }
+              burst(z.x, z.y, z.type === "elite" ? "#d8d8d8" : "#86d95c", z.type === "elite" ? 28 : 14);
+              updateUi();
+            }
+            break;
+          }
+        }
+      }
+    }
+
+    function updateParticles(dt) {
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.life -= dt;
+        if (p.life <= 0) particles.splice(i, 1);
+      }
+      for (let i = flashes.length - 1; i >= 0; i--) {
+        flashes[i].life -= dt;
+        if (flashes[i].life <= 0) flashes.splice(i, 1);
+      }
+    }
+
+    function burst(x, y, color, count) {
+      for (let i = 0; i < count; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const s = 45 + Math.random() * 150;
+        particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, color, life: 0.25 + Math.random() * 0.35 });
+      }
+    }
+
+    function drawBackground() {
+      const grad = ctx.createLinearGradient(0, 0, 0, H);
+      grad.addColorStop(0, "#191f26");
+      grad.addColorStop(1, "#10141a");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = "rgba(194, 209, 220, 0.09)";
+      ctx.lineWidth = 1;
+      for (let x = 0; x <= W; x += 40) {
+        ctx.beginPath();
+        ctx.moveTo(x, HUD_H);
+        ctx.lineTo(x, H);
+        ctx.stroke();
+      }
+      for (let y = HUD_H; y <= H; y += 40) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(W, y);
+        ctx.stroke();
+      }
+      drawCrater(170, 205, 46);
+      drawCrater(730, 265, 58);
+      drawCrater(505, 545, 44);
+      drawStain(300, 455, 44, 20, -0.2);
+      drawStain(835, 530, 58, 24, 0.35);
+      drawStain(600, 175, 38, 16, 0.05);
+    }
+
+    function drawCrater(x, y, r) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.fillStyle = "rgba(0,0,0,0.42)";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, r, r * 0.68, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(145,145,145,0.18)";
+      ctx.lineWidth = 4;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawStain(x, y, rx, ry, rot) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rot);
+      ctx.fillStyle = "rgba(96, 18, 25, 0.45)";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawPlayer(p, now) {
+      if (now < p.invincibleUntil && Math.floor(now / 80) % 2 === 0) return;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 16;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(0, 0, p.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "rgba(255,255,255,0.8)";
+      ctx.stroke();
+      if (p.id === 1) drawCowboyAndRevolver(p);
+      else drawHeadbandAndSmg(p);
+      ctx.restore();
+    }
+
+    function drawCowboyAndRevolver(p) {
+      ctx.fillStyle = "#704116";
+      ctx.beginPath();
+      ctx.roundRect(-16, -30, 32, 11, 5);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.roundRect(-12, -42, 24, 20, 7);
+      ctx.fill();
+      ctx.fillStyle = "#111820";
+      ctx.beginPath();
+      ctx.arc(-7, -4, 3, 0, Math.PI * 2);
+      ctx.arc(7, -4, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#10151b";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(-8, 8);
+      ctx.lineTo(8, 8);
+      ctx.stroke();
+      ctx.save();
+      ctx.rotate(Math.atan2(p.aim.y, p.aim.x));
+      ctx.fillStyle = "#20252a";
+      ctx.fillRect(14, -4, 22, 8);
+      ctx.fillStyle = "#8a9298";
+      ctx.fillRect(34, -2, 12, 4);
+      ctx.restore();
+    }
+
+    function drawHeadbandAndSmg(p) {
+      ctx.fillStyle = "#a51222";
+      ctx.fillRect(-20, -20, 40, 9);
+      ctx.beginPath();
+      ctx.moveTo(-19, -18);
+      ctx.lineTo(-34, -26);
+      ctx.lineTo(-27, -10);
+      ctx.fill();
+      ctx.fillStyle = "#111820";
+      ctx.beginPath();
+      ctx.arc(-7, -4, 3, 0, Math.PI * 2);
+      ctx.arc(7, -4, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#10151b";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(-8, 8);
+      ctx.lineTo(8, 8);
+      ctx.stroke();
+      ctx.save();
+      ctx.rotate(Math.atan2(p.aim.y, p.aim.x));
+      ctx.fillStyle = "#1b2026";
+      ctx.fillRect(12, -5, 32, 9);
+      ctx.fillRect(22, 3, 9, 13);
+      ctx.fillStyle = "#889099";
+      ctx.fillRect(43, -2, 13, 4);
+      ctx.restore();
+    }
+
+    function drawZombie(z) {
+      ctx.save();
+      ctx.translate(z.x, z.y);
+      if (z.type === "elite") {
+        ctx.globalAlpha = 0.4 + Math.sin(performance.now() / 120) * 0.12;
+        ctx.strokeStyle = "#bb1f2e";
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.arc(0, 0, z.radius + 11, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+      ctx.shadowColor = z.type === "elite" ? "#1b0508" : "#76d860";
+      ctx.shadowBlur = z.type === "elite" ? 18 : 10;
+      ctx.fillStyle = z.type === "elite" ? (z.hitFlash > 0 ? "#ffffff" : "#c8ccd0") : (z.hitFlash > 0 ? "#dfffce" : "#6eb65a");
+      ctx.beginPath();
+      ctx.arc(0, 0, z.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = z.type === "elite" ? "#424850" : "#274221";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      if (z.type === "elite") drawEliteFace(z);
+      else drawNormalZombieFace(z);
+      ctx.restore();
+      if (z.type === "elite") drawEliteHp(z);
+    }
+
+    function drawNormalZombieFace() {
+      ctx.fillStyle = "#f2fff0";
+      ctx.beginPath();
+      ctx.arc(-7, -5, 5, 0, Math.PI * 2);
+      ctx.arc(8, -4, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#101811";
+      ctx.beginPath();
+      ctx.arc(-7, -5, 2, 0, Math.PI * 2);
+      ctx.arc(8, -4, 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#3c3a30";
+      ctx.fillRect(-16, 13, 32, 16);
+      ctx.fillStyle = "#eff7de";
+      for (let i = -2; i <= 2; i++) {
+        ctx.beginPath();
+        ctx.moveTo(i * 5 - 2, 8);
+        ctx.lineTo(i * 5 + 2, 8);
+        ctx.lineTo(i * 5, 14);
+        ctx.fill();
+      }
+    }
+
+    function drawEliteFace(z) {
+      ctx.fillStyle = "#2a2f37";
+      ctx.fillRect(-34, 4, 68, 17);
+      ctx.fillStyle = "#f9f5d5";
+      ctx.beginPath();
+      ctx.arc(0, -7, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#101015";
+      ctx.beginPath();
+      ctx.arc(0, -7, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#333941";
+      ctx.lineWidth = 6;
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI * 2 / 6) * i;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * (z.radius - 2), Math.sin(a) * (z.radius - 2));
+        ctx.lineTo(Math.cos(a) * (z.radius + 11), Math.sin(a) * (z.radius + 11));
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#fff5c8";
+      for (let i = -2; i <= 2; i++) {
+        ctx.beginPath();
+        ctx.moveTo(i * 7 - 3, 12);
+        ctx.lineTo(i * 7 + 3, 12);
+        ctx.lineTo(i * 7, 21);
+        ctx.fill();
+      }
+    }
+
+    function drawEliteHp(z) {
+      const w = 44;
+      const h = 6;
+      const x = z.x - w / 2;
+      const y = z.y - z.radius - 22;
+      ctx.fillStyle = "rgba(0,0,0,0.62)";
+      ctx.fillRect(x, y, w, h);
+      for (let i = 0; i < z.maxHp; i++) {
+        ctx.fillStyle = i < z.hp ? "#67e95f" : "#2e3a34";
+        ctx.fillRect(x + i * (w / z.maxHp) + 1, y + 1, w / z.maxHp - 2, h - 2);
+      }
+      ctx.strokeStyle = "rgba(255,255,255,0.35)";
+      ctx.strokeRect(x, y, w, h);
+    }
+
+    function drawBullet(b) {
+      ctx.save();
+      ctx.translate(b.x, b.y);
+      ctx.rotate(Math.atan2(b.vy, b.vx));
+      const g = ctx.createLinearGradient(-18, 0, 10, 0);
+      g.addColorStop(0, "rgba(255, 198, 31, 0)");
+      g.addColorStop(0.5, "rgba(255, 225, 84, 0.5)");
+      g.addColorStop(1, "#fff04d");
+      ctx.shadowColor = "#ffd84c";
+      ctx.shadowBlur = 16;
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 14, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawParticles() {
+      for (const p of particles) {
+        ctx.globalAlpha = clamp(p.life * 3, 0, 1);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function drawFlashes() {
+      for (const f of flashes) {
+        const a = clamp(f.life / f.max, 0, 1) * 0.38;
+        ctx.save();
+        ctx.globalAlpha = a;
+        ctx.strokeStyle = f.color;
+        ctx.lineWidth = 26;
+        ctx.strokeRect(8, 8, W - 16, H - 16);
+        ctx.restore();
+      }
+    }
+
+    function drawModeLine() {
+      ctx.save();
+      ctx.fillStyle = "rgba(0,0,0,0.3)";
+      ctx.fillRect(0, 0, W, HUD_H);
+      ctx.fillStyle = "rgba(255,255,255,0.65)";
+      ctx.font = "14px ui-sans-serif, system-ui";
+      ctx.fillText(mode === "coop" ? "合作：任意一人倒下即失败，清完第10波人类获胜" : "对抗：清波后低分方扣血，点击下一波继续", 24, HUD_H - 16);
+      ctx.fillText(`FPS ${Math.round(fps)}`, W - 78, H - 18);
+      ctx.restore();
+    }
+
+    function render(now) {
+      drawBackground();
+      drawModeLine();
+      for (const b of bullets) drawBullet(b);
+      for (const z of zombies) drawZombie(z);
+      for (const p of players) drawPlayer(p, now);
+      drawParticles();
+      drawFlashes();
+    }
+
+    function update(dt, now) {
+      handleInput(dt, now);
+      updateWave(dt);
+      updateZombies(dt, now);
+      updateBullets(dt);
+      updateParticles(dt);
+      fpsFrames += 1;
+      fpsClock += dt;
+      if (fpsClock >= 0.5) {
+        fps = fpsFrames / fpsClock;
+        fpsFrames = 0;
+        fpsClock = 0;
+      }
+    }
+
+    function tick(now) {
+      const dt = Math.min(0.033, (now - lastTime) / 1000);
+      lastTime = now;
+      update(dt, now);
+      render(now);
+      requestAnimationFrame(tick);
+    }
+
+    function setMode(nextMode) {
+      mode = nextMode;
+      resetAll();
+      showBanner(mode === "coop" ? "合作模式" : "对抗模式", 1000);
+    }
+
+    ui.modeButton.addEventListener("click", () => {
+      setMode(mode === "coop" ? "versus" : "coop");
+    });
+
+    ui.nextWaveButton.addEventListener("click", () => {
+      if (mode === "versus" && waveState === "cleared") {
+        wave += 1;
+        startWave();
+      }
+    });
+
+    window.addEventListener("keydown", (event) => {
+      keys[event.code] = true;
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
+      if (event.code === "KeyR") resetAll();
+    });
+
+    window.addEventListener("keyup", (event) => {
+      keys[event.code] = false;
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
+    });
+
+    async function wait(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    function stateForTest() {
+      return {
+        mode,
+        wave,
+        waveState,
+        spawnedThisWave,
+        totalThisWave,
+        plannedNormal: normalCountForWave(wave),
+        plannedElite: eliteCountForWave(wave),
+        zombies: zombies.map((z) => ({ type: z.type, hp: z.hp, maxHp: z.maxHp, damage: z.damage, x: z.x, y: z.y })),
+        bullets: bullets.map((b) => ({ owner: b.owner, x: b.x, y: b.y })),
+        players: players.map((p) => ({ id: p.id, x: p.x, y: p.y, lives: p.lives, kills: p.kills, waveKills: p.waveKills, alive: p.alive })),
+        gameOver,
+        fps,
+        maxZombies: MAX_ZOMBIES,
+        nextWaveVisible: !ui.nextWaveButton.hidden
+      };
+    }
+
+    window.__gameTest = {
+      getState: stateForTest,
+      reset: resetAll,
+      setMode,
+      setWave(n) {
+        wave = n;
+        startWave();
+      },
+      forceStartSpawning() {
+        readyTimer = 0;
+        waveState = "spawning";
+      },
+      spawnAll() {
+        zombies = [];
+        spawnedThisWave = 0;
+        for (const type of wavePlan) {
+          if (zombies.length >= MAX_ZOMBIES) break;
+          spawnZombie(type);
+          spawnedThisWave += 1;
+        }
+        return stateForTest();
+      },
+      makeZombie(type) {
+        spawnZombie(type);
+        return zombies[zombies.length - 1];
+      },
+      shootZombie(index, times, owner = 1) {
+        const z = zombies[index];
+        for (let i = 0; i < times && z && zombies.includes(z); i++) {
+          z.hp -= 1;
+          if (z.hp <= 0) {
+            const p = players.find((item) => item.id === owner);
+            if (p) {
+              p.kills += 1;
+              p.waveKills += 1;
+            }
+            zombies.splice(zombies.indexOf(z), 1);
+          }
+        }
+        updateUi();
+        return stateForTest();
+      },
+      collide(type, playerIndex) {
+        zombies = [];
+        spawnZombie(type);
+        const z = zombies[0];
+        const p = players[playerIndex];
+        z.x = p.x;
+        z.y = p.y;
+        p.invincibleUntil = 0;
+        updateZombies(0, performance.now());
+        return stateForTest();
+      },
+      simulateMoveAndShoot() {
+        const start = stateForTest();
+        keys.KeyW = true;
+        keys.ArrowUp = true;
+        handleInput(0.25, performance.now());
+        keys.KeyW = false;
+        keys.ArrowUp = false;
+        keys.KeyF = true;
+        keys.Period = true;
+        handleInput(0.016, performance.now() + 500);
+        keys.KeyF = false;
+        keys.Period = false;
+        return { start, end: stateForTest() };
+      },
+      finishCurrentWave(p1WaveKills = 0, p2WaveKills = 0) {
+        players[0].waveKills = p1WaveKills;
+        players[1].waveKills = p2WaveKills;
+        zombies = [];
+        spawnedThisWave = totalThisWave;
+        finishWave();
+        return stateForTest();
+      },
+      stressFrames(count = 180) {
+        const t0 = performance.now();
+        for (let i = 0; i < count; i++) {
+          update(1 / 60, performance.now());
+        }
+        const elapsed = performance.now() - t0;
+        return { elapsed, zombies: zombies.length, fpsEstimate: count / (elapsed / 1000) };
+      }
+    };
+
+    async function runSelfTest() {
+      document.body.classList.add("autotest");
+      const output = document.getElementById("selfTest");
+      const lines = [];
+      const check = (condition, label) => lines.push(`${condition ? "PASS" : "FAIL"} ${label}`);
+      try {
+        resetAll();
+        let move = window.__gameTest.simulateMoveAndShoot();
+        check(move.end.players[0].y < move.start.players[0].y - 20, "玩家1独立移动");
+        check(move.end.players[1].y < move.start.players[1].y - 20, "玩家2独立移动");
+        check(move.end.bullets.some((b) => b.owner === 1), "玩家1 F 射击");
+        check(move.end.bullets.some((b) => b.owner === 2), "玩家2 . 射击");
+
+        window.__gameTest.setWave(1);
+        check(stateForTest().totalThisWave === 7 && stateForTest().plannedElite === 0, "第1波 7 只普通僵尸");
+        window.__gameTest.setWave(3);
+        check(stateForTest().totalThisWave === 11 && stateForTest().plannedElite === 1 && stateForTest().plannedNormal === 10, "第3波 1 精英 + 10 普通");
+
+        zombies = [];
+        window.__gameTest.makeZombie("elite");
+        let eliteState = window.__gameTest.shootZombie(0, 4, 1);
+        check(eliteState.zombies[0]?.hp === 1, "精英怪中 4 枪仍存活且血条更新");
+        eliteState = window.__gameTest.shootZombie(0, 1, 1);
+        check(eliteState.zombies.length === 0, "精英怪第 5 枪死亡");
+
+        resetAll();
+        let normalHit = window.__gameTest.collide("normal", 0);
+        check(normalHit.players[0].lives === 2, "普通僵尸碰撞扣 1 血");
+        resetAll();
+        let eliteHit = window.__gameTest.collide("elite", 0);
+        check(eliteHit.players[0].lives === 1, "精英僵尸碰撞扣 2 血");
+
+        window.__gameTest.setMode("versus");
+        check(stateForTest().mode === "versus", "模式切换为对抗");
+        const afterPenalty = window.__gameTest.finishCurrentWave(0, 2);
+        check(afterPenalty.players[0].lives === 2 && afterPenalty.nextWaveVisible, "对抗低分方扣血并显示下一波");
+        ui.nextWaveButton.click();
+        await wait(30);
+        check(stateForTest().wave === 2 && stateForTest().waveState === "ready", "对抗下一波按钮推进波次");
+
+        window.__gameTest.setMode("coop");
+        const beforePos = stateForTest().players.map((p) => ({ x: p.x, y: p.y }));
+        window.__gameTest.finishCurrentWave(2, 2);
+        const afterWave = stateForTest();
+        check(afterWave.wave === 2 && afterWave.zombies.length === 0 && afterWave.bullets.length === 0, "波次切换清空僵尸和子弹");
+        check(afterWave.players[0].x === beforePos[0].x && afterWave.players[1].x === beforePos[1].x, "波次切换重置玩家位置");
+
+        players[0].lives = 0;
+        checkDeaths();
+        window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyR" }));
+        await wait(30);
+        const reset = stateForTest();
+        check(!reset.gameOver && reset.wave === 1 && reset.players.every((p) => p.lives === 3 && p.kills === 0), "R 键完全重置");
+
+        window.__gameTest.setWave(10);
+        const spawned = window.__gameTest.spawnAll();
+        const stress = window.__gameTest.stressFrames(240);
+        check(spawned.zombies.length <= 20 && stress.zombies <= 20, "僵尸不超过 20 只");
+        check(stress.fpsEstimate > 600, "更新循环性能裕量充足");
+      } catch (error) {
+        lines.push(`FAIL ${error.message}`);
+      }
+      const ok = lines.every((line) => line.startsWith("PASS"));
+      output.dataset.status = ok ? "pass" : "fail";
+      output.textContent = `${ok ? "SELF TEST PASS" : "SELF TEST FAIL"}\n${lines.join("\n")}`;
+    }
+
+    resetAll();
+    requestAnimationFrame(tick);
+    if (new URLSearchParams(location.search).has("autotest")) {
+      window.addEventListener("load", () => runSelfTest());
+    }
+  </script>
+</body>
+</html>
